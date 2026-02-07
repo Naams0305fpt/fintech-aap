@@ -41,6 +41,15 @@ class Account {
     }
   }
 
+  /// Get masked account number for display (e.g., "xxxxxx7890")
+  String get maskedAccountNumber {
+    if (accountNumber == null || accountNumber!.isEmpty) return '';
+    if (accountNumber!.length <= 4) return accountNumber!;
+    final visiblePart = accountNumber!.substring(accountNumber!.length - 4);
+    final maskedPart = 'x' * (accountNumber!.length - 4);
+    return maskedPart + visiblePart;
+  }
+
   /// Copy with new values
   Account copyWith({
     String? id,

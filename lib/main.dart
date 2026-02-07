@@ -1,21 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'theme/app_theme.dart';
 import 'screens/home_screen.dart';
+import 'screens/lock_screen.dart';
 import 'providers/app_provider.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Load environment variables
-  try {
-    await dotenv.load(fileName: '.env');
-  } catch (e) {
-    // .env file may not exist, that's okay
-    debugPrint('No .env file found, AI features will use demo mode');
-  }
 
   // Set system UI style
   SystemChrome.setSystemUIOverlayStyle(
@@ -41,11 +34,14 @@ class FinTechApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authService = AuthService.instance;
+
     return MaterialApp(
       title: 'FinTech',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      home: const HomeScreen(),
+      // Show lock screen if PIN is enabled
+      home: authService.isLockEnabled ? const LockScreen() : const HomeScreen(),
     );
   }
 }

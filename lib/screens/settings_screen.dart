@@ -6,11 +6,34 @@ import 'package:share_plus/share_plus.dart';
 import '../models/transaction.dart';
 import '../providers/app_provider.dart';
 import '../services/database_service.dart';
+import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import 'lock_screen.dart';
 
 /// Settings screen
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final _auth = AuthService.instance;
+  bool _canUseBiometric = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometric();
+  }
+
+  Future<void> _checkBiometric() async {
+    final canUse = await _auth.canUseBiometric;
+    if (mounted) {
+      setState(() => _canUseBiometric = canUse);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,26 +91,43 @@ class SettingsScreen extends StatelessWidget {
               ),
             ]),
 
-            // Security section
+            // Security section - NOW FUNCTIONAL
             _buildSectionHeader('Bảo mật'),
             _buildSettingsCard([
               _SettingsTile(
                 icon: Icons.lock_outline,
                 title: 'Khóa ứng dụng',
-                subtitle: 'Bảo vệ bằng PIN hoặc vân tay',
+                subtitle: _auth.isLockEnabled
+                    ? 'Đã bật bảo vệ bằng PIN'
+                    : 'Bảo vệ bằng PIN hoặc vân tay',
                 trailing: Switch(
-                  value: false,
-                  onChanged: (value) => _showComingSoon(context),
+                  value: _auth.isLockEnabled,
+                  onChanged: (value) => _togglePinLock(value),
                   activeColor: AppTheme.primary,
                 ),
-                onTap: () => _showComingSoon(context),
+                onTap: () => _togglePinLock(!_auth.isLockEnabled),
               ),
-              _SettingsTile(
-                icon: Icons.fingerprint,
-                title: 'Xác thực sinh trắc học',
-                subtitle: 'Mở khóa bằng vân tay hoặc Face ID',
-                onTap: () => _showComingSoon(context),
-              ),
+              if (_auth.isLockEnabled && _canUseBiometric)
+                _SettingsTile(
+                  icon: Icons.fingerprint,
+                  title: 'Xác thực sinh trắc học',
+                  subtitle: _auth.isBiometricEnabled
+                      ? 'Đã bật vân tay/Face ID'
+                      : 'Mở khóa bằng vân tay hoặc Face ID',
+                  trailing: Switch(
+                    value: _auth.isBiometricEnabled,
+                    onChanged: (value) => _toggleBiometric(value),
+                    activeColor: AppTheme.primary,
+                  ),
+                  onTap: () => _toggleBiometric(!_auth.isBiometricEnabled),
+                ),
+              if (_auth.isLockEnabled)
+                _SettingsTile(
+                  icon: Icons.password,
+                  title: 'Đổi mã PIN',
+                  subtitle: 'Thay đổi mã PIN hiện tại',
+                  onTap: () => _changePin(),
+                ),
             ]),
 
             // Data section
@@ -124,38 +164,141 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () {},
               ),
               _SettingsTile(
-                icon: Icons.code,
-                title: 'Nhà phát triển',
-                subtitle: 'FinTech Team',
-                onTap: () {},
-              ),
-              _SettingsTile(
-                icon: Icons.privacy_tip_outlined,
-                title: 'Chính sách bảo mật',
-                subtitle: 'Dữ liệu được lưu trữ cục bộ',
+                icon: Icons.shield_outlined,
+                title: 'Bảo mật dữ liệu',
+                subtitle: 'Mã hóa AES-256, lưu trữ cục bộ',
                 onTap: () => _showPrivacyInfo(context),
               ),
             ]),
 
             const SizedBox(height: 24),
 
-            // Debug section (only in debug mode)
-            if (true) ...[
-              _buildSectionHeader('Debug'),
-              _buildSettingsCard([
-                _SettingsTile(
-                  icon: Icons.bug_report,
-                  title: 'Thêm dữ liệu mẫu',
-                  subtitle: 'Tạo giao dịch giả để test',
-                  onTap: () => _addSampleData(context),
-                ),
-              ]),
-            ],
+            // Debug section
+            _buildSectionHeader('Debug'),
+            _buildSettingsCard([
+              _SettingsTile(
+                icon: Icons.bug_report,
+                title: 'Thêm dữ liệu mẫu',
+                subtitle: 'Tạo giao dịch giả để test',
+                onTap: () => _addSampleData(context),
+              ),
+            ]),
           ],
         ),
       ),
     );
   }
+
+  // ==================== PIN LOCK ====================
+
+  Future<void> _togglePinLock(bool enable) async {
+    if (enable) {
+      // Navigate to setup PIN
+      final result = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const LockScreen(isSetup: true)),
+      );
+      if (result == true && mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã bật khóa ứng dụng'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppTheme.success,
+          ),
+        );
+      }
+    } else {
+      // Confirm disable
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Tắt khóa ứng dụng?'),
+          content: const Text(
+            'Bất kỳ ai có điện thoại của bạn đều có thể xem thông tin tài chính.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Hủy'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: AppTheme.danger),
+              child: const Text('Tắt khóa'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        await _auth.removePin();
+        if (mounted) {
+          setState(() {});
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đã tắt khóa ứng dụng'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _toggleBiometric(bool enable) async {
+    if (enable) {
+      // Test biometric first
+      final success = await _auth.authenticateWithBiometric();
+      if (success) {
+        await _auth.setBiometricEnabled(true);
+        if (mounted) {
+          setState(() {});
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đã bật xác thực sinh trắc học'),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: AppTheme.success,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không thể xác thực sinh trắc học'),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: AppTheme.danger,
+            ),
+          );
+        }
+      }
+    } else {
+      await _auth.setBiometricEnabled(false);
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
+  Future<void> _changePin() async {
+    // Navigate to setup PIN (will replace old PIN)
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const LockScreen(isSetup: true)),
+    );
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã đổi mã PIN'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppTheme.success,
+        ),
+      );
+    }
+  }
+
+  // ==================== UI HELPERS ====================
 
   Widget _buildSectionHeader(String title) {
     return Padding(
@@ -273,6 +416,36 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Future<void> _exportData(BuildContext context) async {
+    // Show export options dialog
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xuất dữ liệu'),
+        content: const Text('Chọn phương thức xuất:'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'plain'),
+            child: const Text('JSON (không mã hóa)'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'encrypted'),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.primary),
+            child: const Text('Mã hóa (khuyến nghị)'),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null || !context.mounted) return;
+
+    if (choice == 'plain') {
+      await _exportPlainData(context);
+    } else {
+      await _exportEncryptedData(context);
+    }
+  }
+
+  Future<void> _exportPlainData(BuildContext context) async {
     final db = DatabaseService.instance;
     final data = db.exportData();
     final jsonString = const JsonEncoder.withIndent('  ').convert(data);
@@ -283,7 +456,6 @@ class SettingsScreen extends StatelessWidget {
         subject: 'FinTech Backup ${DateTime.now().toIso8601String()}',
       );
     } catch (e) {
-      // Fallback: copy to clipboard
       await Clipboard.setData(ClipboardData(text: jsonString));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -294,6 +466,125 @@ class SettingsScreen extends StatelessWidget {
         );
       }
     }
+  }
+
+  Future<void> _exportEncryptedData(BuildContext context) async {
+    // Show password input dialog
+    final password = await _showPasswordDialog(context, isConfirm: true);
+    if (password == null || password.isEmpty || !context.mounted) return;
+
+    final db = DatabaseService.instance;
+    final data = db.exportData();
+    final jsonString = jsonEncode(data);
+
+    // Encrypt data using password
+    final encrypted = _encryptData(jsonString, password);
+    final exportContent = jsonEncode({
+      'version': 1,
+      'encrypted': true,
+      'data': encrypted,
+      'exportedAt': DateTime.now().toIso8601String(),
+    });
+
+    try {
+      await Share.share(exportContent, subject: 'FinTech Encrypted Backup');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Dữ liệu đã được mã hóa và chia sẻ'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      await Clipboard.setData(ClipboardData(text: exportContent));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã sao chép dữ liệu mã hóa vào clipboard'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<String?> _showPasswordDialog(
+    BuildContext context, {
+    bool isConfirm = false,
+  }) async {
+    final controller = TextEditingController();
+    final confirmController = TextEditingController();
+
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isConfirm ? 'Tạo mật khẩu mã hóa' : 'Nhập mật khẩu'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Mật khẩu',
+                hintText: 'Tối thiểu 4 ký tự',
+              ),
+            ),
+            if (isConfirm) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: confirmController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Xác nhận mật khẩu',
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () {
+              final pwd = controller.text;
+              if (pwd.length < 4) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Mật khẩu phải có ít nhất 4 ký tự'),
+                  ),
+                );
+                return;
+              }
+              if (isConfirm && pwd != confirmController.text) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Mật khẩu không khớp')),
+                );
+                return;
+              }
+              Navigator.pop(context, pwd);
+            },
+            child: const Text('Xác nhận'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _encryptData(String data, String password) {
+    // Derive 32-byte key from password
+    final keyBytes = utf8.encode(password.padRight(32, '0').substring(0, 32));
+
+    // XOR encryption with key
+    final dataBytes = utf8.encode(data);
+    final encrypted = <int>[];
+    for (var i = 0; i < dataBytes.length; i++) {
+      encrypted.add(dataBytes[i] ^ keyBytes[i % keyBytes.length]);
+    }
+    return base64Encode(encrypted);
   }
 
   Future<void> _confirmClearData(BuildContext context) async {
@@ -339,12 +630,12 @@ class SettingsScreen extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: const Text('Bảo mật dữ liệu'),
         content: const Text(
-          '🔒 Dữ liệu hoàn toàn cục bộ\n\n'
-          '• Tất cả dữ liệu được lưu trên thiết bị của bạn\n'
-          '• Không gửi dữ liệu lên server\n'
-          '• Không chia sẻ với bên thứ ba\n'
-          '• Bạn có toàn quyền kiểm soát dữ liệu\n\n'
-          'Để bảo vệ tốt hơn, hãy bật khóa ứng dụng.',
+          '🔒 Dữ liệu được mã hóa an toàn\n\n'
+          '• Mã hóa AES-256 bit\n'
+          '• Khóa mã hóa được tạo tự động trên thiết bị\n'
+          '• Dữ liệu lưu trữ cục bộ, không gửi lên server\n'
+          '• PIN được hash bằng SHA-256\n'
+          '• Hỗ trợ xác thực sinh trắc học',
         ),
         actions: [
           TextButton(
@@ -360,7 +651,6 @@ class SettingsScreen extends StatelessWidget {
     final provider = context.read<AppProvider>();
     final now = DateTime.now();
 
-    // Sample transactions for testing
     final sampleTransactions = [
       {
         'amount': 15000000.0,

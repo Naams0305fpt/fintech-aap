@@ -120,3 +120,49 @@ class DateFormatter {
     return months[month - 1];
   }
 }
+
+/// Security formatting utilities for masking sensitive data
+class SecurityFormatter {
+  /// Mask account number - show only last 4 digits
+  /// Example: "1234567890" → "xxxxxx7890"
+  static String maskAccountNumber(String? number) {
+    if (number == null || number.isEmpty) return '';
+    if (number.length <= 4) return number;
+
+    final visiblePart = number.substring(number.length - 4);
+    final maskedPart = 'x' * (number.length - 4);
+    return maskedPart + visiblePart;
+  }
+
+  /// Mask account number with spaces for card format
+  /// Example: "1234567890123456" → "xxxx xxxx xxxx 3456"
+  static String maskCardNumber(String? number) {
+    if (number == null || number.isEmpty) return '';
+    final cleaned = number.replaceAll(' ', '').replaceAll('-', '');
+    if (cleaned.length <= 4) return cleaned;
+
+    final visiblePart = cleaned.substring(cleaned.length - 4);
+    return 'xxxx xxxx xxxx $visiblePart';
+  }
+
+  /// Mask phone number - show only last 3 digits
+  /// Example: "0912345678" → "xxxxxxx678"
+  static String maskPhoneNumber(String? phone) {
+    if (phone == null || phone.isEmpty) return '';
+    if (phone.length <= 3) return phone;
+
+    final visiblePart = phone.substring(phone.length - 3);
+    final maskedPart = 'x' * (phone.length - 3);
+    return maskedPart + visiblePart;
+  }
+
+  /// Mask text in SMS rawText - mask account numbers and phone numbers
+  static String maskSensitiveText(String text) {
+    // Mask patterns like account numbers (8+ digits)
+    var masked = text.replaceAllMapped(
+      RegExp(r'\b(\d{8,16})\b'),
+      (match) => maskAccountNumber(match.group(1)),
+    );
+    return masked;
+  }
+}

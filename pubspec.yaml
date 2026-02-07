@@ -34,7 +34,6 @@ dependencies:
   notification_listener_service: ^0.3.1
   
   # AI Integration
-  google_generative_ai: ^0.4.7
   
   # Utilities
   uuid: ^4.5.1
@@ -42,7 +41,7 @@ dependencies:
   share_plus: ^10.1.2
   local_auth: ^2.3.0
   permission_handler: ^11.3.1
-  flutter_dotenv: ^6.0.0
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

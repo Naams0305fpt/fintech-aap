@@ -6,7 +6,7 @@ import '../utils/formatters.dart';
 import '../widgets/balance_card.dart';
 import '../widgets/transaction_list_item.dart';
 import 'add_transaction_screen.dart';
-import 'ai_insights_screen.dart';
+
 import 'transactions_screen.dart';
 import 'statistics_screen.dart';
 import 'settings_screen.dart';
@@ -120,19 +120,6 @@ class DashboardView extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
                   ),
                   actions: [
-                    // AI Insights button
-                    IconButton(
-                      icon: const Text('🤖', style: TextStyle(fontSize: 22)),
-                      tooltip: 'AI Tư vấn',
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AIInsightsScreen(),
-                          ),
-                        );
-                      },
-                    ),
                     if (provider.unconfirmedTransactions.isNotEmpty)
                       Badge(
                         label: Text(
