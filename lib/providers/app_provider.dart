@@ -3,10 +3,12 @@ import '../models/transaction.dart';
 import '../models/account.dart';
 import '../models/category.dart';
 import '../services/database_service.dart';
+import '../services/notification_service.dart';
 
 /// Main application state provider
 class AppProvider extends ChangeNotifier {
   final DatabaseService _db = DatabaseService.instance;
+  final NotificationService _notifications = NotificationService.instance;
 
   bool _isLoading = true;
   bool get isLoading => _isLoading;
@@ -43,6 +45,7 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
 
     await _db.init();
+    await _notifications.init();
     await _loadData();
 
     _isLoading = false;
@@ -97,12 +100,28 @@ class AppProvider extends ChangeNotifier {
   /// Add transaction
   Future<void> addTransaction(Transaction transaction) async {
     await _db.addTransaction(transaction);
+
+    // Schedule reminder if not confirmed (auto-parsed from bank SMS)
+    if (!transaction.isConfirmed) {
+      await _notifications.scheduleTransactionReminder(
+        transactionId: transaction.id,
+        amount: transaction.amount,
+        isIncome: transaction.isIncome,
+      );
+    }
+
     await refresh();
   }
 
   /// Update transaction
   Future<void> updateTransaction(Transaction transaction) async {
     await _db.updateTransaction(transaction);
+
+    // Cancel reminder if now confirmed
+    if (transaction.isConfirmed) {
+      await _notifications.cancelTransactionReminder(transaction.id);
+    }
+
     await refresh();
   }
 
