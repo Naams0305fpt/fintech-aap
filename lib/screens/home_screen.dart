@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
 import '../theme/app_theme.dart';
-import '../utils/formatters.dart';
 import '../widgets/balance_card.dart';
 import '../widgets/transaction_list_item.dart';
 import 'add_transaction_screen.dart';
