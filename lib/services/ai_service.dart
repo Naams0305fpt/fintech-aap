@@ -1,4 +1,5 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/transaction.dart';
 import '../utils/formatters.dart';
 
@@ -12,12 +13,12 @@ class AIService {
   GenerativeModel? _model;
   bool _initialized = false;
 
-  // TODO: Replace with your Gemini API key
-  static const String _apiKey = 'YOUR_GEMINI_API_KEY';
+  /// Get API key from environment
+  String get _apiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
 
   /// Initialize AI service
   Future<void> init() async {
-    if (_initialized || _apiKey == 'YOUR_GEMINI_API_KEY') return;
+    if (_initialized || _apiKey.isEmpty) return;
 
     _model = GenerativeModel(
       model: 'gemini-1.5-flash',
@@ -33,7 +34,7 @@ class AIService {
   }
 
   /// Check if AI is configured
-  bool get isConfigured => _apiKey != 'YOUR_GEMINI_API_KEY';
+  bool get isConfigured => _apiKey.isNotEmpty;
 
   /// Analyze spending and provide insights
   Future<String> analyzeSpending({
